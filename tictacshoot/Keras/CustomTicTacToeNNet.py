@@ -1,4 +1,4 @@
-# tictactoe/keras/CustomTicTacToeNNet.py
+# tictacshoot/keras/CustomTicTacToeNNet.py
 
 import sys
 sys.path.append('..')
@@ -23,7 +23,7 @@ class CustomTicTacToeNNet():
 
         # The input already has a 'channel' dimension (the 5 planes).
         # We specify 'channels_first' to the Conv2D layers.
-        # The axis for BatchNormalization is 1 (the channel axis).
+        # The axis for BatchNormalization is 1 (the channel axis) for Conv2D layers.
         x_image = self.input_boards
         h_conv1 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='same', data_format='channels_first')(x_image)))
         h_conv2 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='same', data_format='channels_first')(h_conv1)))
@@ -31,8 +31,9 @@ class CustomTicTacToeNNet():
         h_conv4 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='valid', data_format='channels_first')(h_conv3)))
         
         h_conv4_flat = Flatten()(h_conv4)
-        s_fc1 = Dropout(args.dropout)(Activation('relu')(BatchNormalization(axis=1)(Dense(1024)(h_conv4_flat))))
-        s_fc2 = Dropout(args.dropout)(Activation('relu')(BatchNormalization(axis=1)(Dense(512)(s_fc1))))
+        # For Dense layers, BatchNormalization axis should be -1 (or 1 for the feature axis)
+        s_fc1 = Dropout(args.dropout)(Activation('relu')(BatchNormalization()(Dense(1024)(h_conv4_flat))))
+        s_fc2 = Dropout(args.dropout)(Activation('relu')(BatchNormalization()(Dense(512)(s_fc1))))
         
         # Output Heads
         self.pi = Dense(self.action_size, activation='softmax', name='pi')(s_fc2)
