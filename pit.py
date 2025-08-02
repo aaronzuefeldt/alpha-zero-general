@@ -1,54 +1,76 @@
+# pit.py
+
 import Arena
 from MCTS import MCTS
-from othello.OthelloGame import OthelloGame
-from othello.OthelloPlayers import *
-from othello.pytorch.NNet import NNetWrapper as NNet
-
-
-import numpy as np
 from utils import *
+import numpy as np
 
 """
-use this script to play any two agents against each other, or play manually with
-any agent.
+Use this script to play any two agents against each other, or play manually with
+any agent for the custom Tic-Tac-Toe game.
 """
 
-mini_othello = False  # Play in 6x6 instead of the normal 8x8.
-human_vs_cpu = True
+# --- Configuration ---
+# Set to True to use the PyTorch version of the NNet, False for Keras
+USE_PYTORCH = True
+# Set to True to play against the AI, False for AI vs. AI
+HUMAN_VS_CPU = True
 
-if mini_othello:
-    g = OthelloGame(6)
+# --- Game and Player Imports ---
+from tictacshoot.CustomTicTacToeGame import CustomTicTacToeGame as Game
+from tictacshoot.CustomTicTacToePlayers import HumanPlayer, RandomPlayer
+
+# --- Neural Network Import ---
+if USE_PYTORCH:
+    from tictacshoot.pytorch.NNet import NNetWrapper as NNet
 else:
-    g = OthelloGame(8)
+    from tictacshoot.keras.NNet import NNetWrapper as NNet
 
-# all players
+# --- Game Initialization ---
+g = Game()
+
+# --- Player Definitions ---
+# Human player
+hp = HumanPlayer(g).play
+# Random player
 rp = RandomPlayer(g).play
-gp = GreedyOthelloPlayer(g).play
-hp = HumanOthelloPlayer(g).play
 
-
-
-# nnet players
+# --- Neural Network Player Setup ---
+# Initialize the Neural Network
 n1 = NNet(g)
-if mini_othello:
-    n1.load_checkpoint('./pretrained_models/othello/pytorch/','6x100x25_best.pth.tar')
-else:
-    n1.load_checkpoint('./pretrained_models/othello/pytorch/','8x8_100checkpoints_best.pth.tar')
-args1 = dotdict({'numMCTSSims': 50, 'cpuct':1.0})
+
+# Define the checkpoint path and filename
+if USE_PYTORCH:
+    # NOTE: You must have a trained model for this to work.
+    # To play against a random opponent, comment out n1.load_checkpoint and set player2 = rp
+    # To train a model, run main.py.
+    n1.load_checkpoint('./pretrained_models/tictactoe/pytorch/', 'best.pth.tar')
+else: # Keras
+    n1.load_checkpoint('./pretrained_models/tictactoe/keras/', 'best.h5')
+
+# MCTS arguments
+args1 = dotdict({'numMCTSSims': 50, 'cpuct': 1.0})
+# Create the MCTS agent
 mcts1 = MCTS(g, n1, args1)
+# Define the AI player function (takes the best action)
 n1p = lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 
-if human_vs_cpu:
+# --- Arena Setup ---
+if HUMAN_VS_CPU:
     player2 = hp
 else:
-    n2 = NNet(g)
-    n2.load_checkpoint('./pretrained_models/othello/pytorch/', '8x8_100checkpoints_best.pth.tar')
-    args2 = dotdict({'numMCTSSims': 50, 'cpuct': 1.0})
-    mcts2 = MCTS(g, n2, args2)
-    n2p = lambda x: np.argmax(mcts2.getActionProb(x, temp=0))
+    # To play against another AI, you can reuse the same network...
+    player2 = n1p 
+    # ...or load a different one
+    # n2 = NNet(g)
+    # n2.load_checkpoint(...)
+    # mcts2 = MCTS(g, n2, args1)
+    # n2p = lambda x: np.argmax(mcts2.getActionProb(x, temp=0))
+    # player2 = n2p
 
-    player2 = n2p  # Player 2 is neural network if it's cpu vs cpu.
+# The Arena will pit player n1p against player2
+# The game's display function is used to print the board
+arena = Arena.Arena(n1p, player2, g, display=Game.display)
 
-arena = Arena.Arena(n1p, player2, g, display=OthelloGame.display)
-
+# Play 2 games and print the results
 print(arena.playGames(2, verbose=True))

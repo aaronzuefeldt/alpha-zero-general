@@ -4,7 +4,7 @@ import coloredlogs
 import tensorflow as tf
 from Coach import Coach
 from tictacshoot.CustomTicTacToeGame import CustomTicTacToeGame as Game 
-from tictacshoot.keras.NNet import NNetWrapper as nn # Or your preferred backend
+from tictactoe.pytorch.NNet import NNetWrapper as nn
 from utils import *
 
 log = logging.getLogger(__name__)
