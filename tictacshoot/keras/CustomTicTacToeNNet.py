@@ -1,4 +1,4 @@
-# tictacshoot/keras/CustomTicTacToeNNet.py
+# tictactoe/keras/CustomTicTacToeNNet.py
 
 import sys
 sys.path.append('..')
@@ -11,29 +11,30 @@ from tensorflow.keras.optimizers import *
 
 class CustomTicTacToeNNet():
     def __init__(self, game, args):
-        # --- Game Parameters ---
-        # The input shape is now 3D: (planes, board_x, board_y)
+        # Game Parameters
         self.input_shape = game.getInitBoard().shape 
         self.action_size = game.getActionSize()
         self.args = args
 
-        # --- Neural Net ---
-        # Input layer now expects a 3D board state (e.g., (5, 3, 3))
-        self.input_boards = Input(shape=self.input_shape)
+        # Neural Net
+        self.input_boards = Input(shape=self.input_shape)    # s: batch_size x planes x board_x x board_y
 
-        # The input already has a 'channel' dimension (the 5 planes).
-        # We specify 'channels_first' to the Conv2D layers.
-        # The axis for BatchNormalization is 1 (the channel axis) for Conv2D layers.
-        x_image = self.input_boards
-        h_conv1 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='same', data_format='channels_first')(x_image)))
-        h_conv2 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='same', data_format='channels_first')(h_conv1)))
-        h_conv3 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='same', data_format='channels_first')(h_conv2)))
-        h_conv4 = Activation('relu')(BatchNormalization(axis=1)(Conv2D(args.num_channels, 3, padding='valid', data_format='channels_first')(h_conv3)))
+        # --- CHANGE FOR CPU COMPATIBILITY ---
+        # Reshape input from (planes, x, y) to (x, y, planes) for NHWC format
+        # The Permute layer reorders the dimensions. (1,2,3) -> (2,3,1)
+        x_image = Permute((2, 3, 1))(self.input_boards)
+
+        # The 'data_format' argument is removed, defaulting to 'channels_last' (NHWC)
+        # The BatchNormalization axis is changed from 1 to 3 to target the channel axis, which is now last.
+        h_conv1 = Activation('relu')(BatchNormalization(axis=3)(Conv2D(args.num_channels, 3, padding='same')(x_image)))
+        h_conv2 = Activation('relu')(BatchNormalization(axis=3)(Conv2D(args.num_channels, 3, padding='same')(h_conv1)))
+        h_conv3 = Activation('relu')(BatchNormalization(axis=3)(Conv2D(args.num_channels, 3, padding='same')(h_conv2)))
+        h_conv4 = Activation('relu')(BatchNormalization(axis=3)(Conv2D(args.num_channels, 3, padding='valid')(h_conv3)))
         
         h_conv4_flat = Flatten()(h_conv4)
-        # For Dense layers, BatchNormalization axis should be -1 (or 1 for the feature axis)
-        s_fc1 = Dropout(args.dropout)(Activation('relu')(BatchNormalization()(Dense(1024)(h_conv4_flat))))
-        s_fc2 = Dropout(args.dropout)(Activation('relu')(BatchNormalization()(Dense(512)(s_fc1))))
+        # The fully connected layers' batch norm axis remains 1, as they operate on flattened 1D data.
+        s_fc1 = Dropout(args.dropout)(Activation('relu')(BatchNormalization(axis=1)(Dense(1024)(h_conv4_flat))))
+        s_fc2 = Dropout(args.dropout)(Activation('relu')(BatchNormalization(axis=1)(Dense(512)(s_fc1))))
         
         # Output Heads
         self.pi = Dense(self.action_size, activation='softmax', name='pi')(s_fc2)
