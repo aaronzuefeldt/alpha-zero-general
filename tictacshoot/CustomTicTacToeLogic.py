@@ -74,8 +74,9 @@ class Board():
             if self._has_valid_targets(player):
                 moves.append(10) # SHOOT
 
-        # 3. END_TURN is always a valid move
-        moves.append(11)
+        # 3. END_TURN is possible once a piece has been placed, or if the board is full
+        if self.has_placed or np.count_nonzero(self.pieces) == 9:
+            moves.append(11) # END TURN
 
         return moves
 

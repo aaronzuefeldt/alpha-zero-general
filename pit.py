@@ -59,18 +59,13 @@ n1p = lambda x: np.argmax(mcts1.getActionProb(x, temp=0))
 if HUMAN_VS_CPU:
     player2 = hp
 else:
-    # To play against another AI, you can reuse the same network...
     player2 = n1p 
-    # ...or load a different one
-    # n2 = NNet(g)
-    # n2.load_checkpoint(...)
-    # mcts2 = MCTS(g, n2, args1)
-    # n2p = lambda x: np.argmax(mcts2.getActionProb(x, temp=0))
-    # player2 = n2p
+
 
 # The Arena will pit player n1p against player2
 # The game's display function is used to print the board
-arena = Arena.Arena(n1p, player2, g, display=Game.display)
+# FIXED: Use instance method g.display instead of class method Game.display
+arena = Arena.Arena(n1p, player2, g, display=g.display)
 
 # Play 2 games and print the results
 print(arena.playGames(2, verbose=True))
