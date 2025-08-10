@@ -117,7 +117,7 @@ class MCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v_child = self.search(next_s)
         v = v_child if next_player == 1 else -v_child
 
         if (s, a) in self.Qsa:
