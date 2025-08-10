@@ -113,13 +113,14 @@ class CustomTicTacToeGame(Game):
 
     def _encode_board(self, b):
         """ Encodes the Board object into a NumPy array for the NN. """
-        # 5 planes: pieces, rotations, actions_left, has_placed, turn_number
-        board_state = np.zeros((5, self.n, self.n), dtype=float)
+        # 6 planes: pieces, rotations, actions_left, has_placed, turn_number, token
+        board_state = np.zeros((6, self.n, self.n), dtype=float)
         board_state[0] = b.pieces
         board_state[1] = b.rotations
         board_state[2].fill(b.actions_left)
         board_state[3].fill(1 if b.has_placed else 0)
         board_state[4].fill(b.turn_number)
+        board_state[5].fill(1 if b.token_active else 0)
         return board_state
     
     def _decode_board(self, board_state):
@@ -130,5 +131,5 @@ class CustomTicTacToeGame(Game):
         b.actions_left = int(board_state[2, 0, 0])
         b.has_placed = bool(board_state[3, 0, 0])
         b.turn_number = int(board_state[4, 0, 0])
-        b.token_active = (b.pieces[2, 1] != 0)
+        b.token_active = bool(board_state[5, 0, 0])
         return b
