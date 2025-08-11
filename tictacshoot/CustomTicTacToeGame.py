@@ -14,10 +14,11 @@ class CustomTicTacToeGame(Game):
     """
     def __init__(self, n=3):
         self.n = n
-        self.action_size = n*n + 3 # 9 place, 1 spin, 1 shoot, 1 end_turn
-        self.ACTION_SPIN = n*n
-        self.ACTION_SHOOT = n*n + 1
-        self.ACTION_END_TURN = n*n + 2
+        # 8 rotation options per square + 3 special actions
+        self.action_size = n*n*8 + 3
+        self.ACTION_SPIN = n*n*8
+        self.ACTION_SHOOT = n*n*8 + 1
+        self.ACTION_END_TURN = n*n*8 + 2
 
         # Arrow symbols matching the C++ source (Game.h)
         # C++ piece '1' (O) -> Python player '1'
@@ -33,6 +34,7 @@ class CustomTicTacToeGame(Game):
         return self._encode_board(b)
 
     def getBoardSize(self):
+        # Board is encoded into planes; the framework typically uses (n, n).
         return (self.n, self.n)
 
     def getActionSize(self):
@@ -48,13 +50,17 @@ class CustomTicTacToeGame(Game):
         valids = [0] * self.getActionSize()
         b = self._decode_board(board)
         legal_moves = b.get_legal_moves(player)
-        
+
         for move_idx in legal_moves:
-            if 0 <= move_idx <= 71: valids[move_idx] = 1
-            elif move_idx == 72: valids[self.ACTION_SPIN] = 1
-            elif move_idx == 73: valids[self.ACTION_SHOOT] = 1
-            elif move_idx == 74: valids[self.ACTION_END_TURN] = 1
-        
+            if 0 <= move_idx < self.ACTION_SPIN:
+                valids[move_idx] = 1
+            elif move_idx == self.ACTION_SPIN:
+                valids[self.ACTION_SPIN] = 1
+            elif move_idx == self.ACTION_SHOOT:
+                valids[self.ACTION_SHOOT] = 1
+            elif move_idx == self.ACTION_END_TURN:
+                valids[self.ACTION_END_TURN] = 1
+
         return np.array(valids)
 
     def getGameEnded(self, board, player):
@@ -95,7 +101,7 @@ class CustomTicTacToeGame(Game):
             print(" | ", end="")
             for c in range(n):
                 piece = b.pieces[r, c]
-                
+
                 if b.token_active and r == 2 and c == 1:
                      # Special display for the active C++ 'token'
                     symbol = " x "
@@ -104,16 +110,16 @@ class CustomTicTacToeGame(Game):
                     symbol = self.symbols[piece][rot]
                 else:
                     symbol = self.symbols[0]
-                
+
                 print(f"{symbol:^3} | ", end="")
             print()
         print("-" * (6 * n))
-    
+
     # --- Helper methods for encoding/decoding the board state ---
 
     def _encode_board(self, b):
         """ Encodes the Board object into a NumPy array for the NN. """
-        # 6 planes: pieces, rotations, actions_left, has_placed, turn_number, token
+        # 7 planes: pieces, rotations, shields, actions_left, last_placed, turn_number, token_active
         board_state = np.zeros((7, self.n, self.n), dtype=float)
         board_state[0] = b.pieces
         board_state[1] = b.rotations
@@ -121,11 +127,11 @@ class CustomTicTacToeGame(Game):
         board_state[3].fill(b.actions_left)
         if b.last_placed is not None:
             r, c = b.last_placed
-            board_state[5, r, c] = 1.0
+            board_state[4, r, c] = 1.0
         board_state[5].fill(b.turn_number)
         board_state[6].fill(1 if b.token_active else 0)
         return board_state
-    
+
     def _decode_board(self, board_state):
         """ Decodes the NumPy array back into a Board object. """
         b = Board(self.n)
@@ -134,9 +140,9 @@ class CustomTicTacToeGame(Game):
         b.has_shield_states = np.array(board_state[2], dtype=int)
         b.actions_left = int(board_state[3, 0, 0])
 
-        ys, xs = np.where(board_state[5] == 1)
+        ys, xs = np.where(board_state[4] == 1)
         b.last_placed = (int(ys[0]), int(xs[0])) if len(ys) else None
-        b.has_placed = b.last_placed != None
+        b.has_placed = b.last_placed is not None
 
         b.turn_number = int(board_state[5, 0, 0])
         b.token_active = bool(board_state[6, 0, 0])

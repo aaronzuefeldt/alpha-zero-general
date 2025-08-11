@@ -1,4 +1,3 @@
-
 # tictactoe/CustomTicTacToeLogic_sliding.py
 
 import numpy as np
@@ -6,7 +5,8 @@ import numpy as np
 class Board():
     """
     Manages the custom Tic-Tac-Toe with shooting + sliding.
-    
+    Action space (for n=3): 72 placement actions (8 rotations × 9 squares)
+    plus 3 special actions: 72=SPIN, 73=SHOOT, 74=END_TURN.
     """
     # Maps rotation index to a (row, col) direction vector
     DIRECTIONS = [
@@ -65,35 +65,39 @@ class Board():
     def get_legal_moves(self, player):
         """
         Returns a list of all legal moves.
-        A move is an integer from 0 to 11.
-        - 0-8: Place a piece at the corresponding board index.
-        - 9: Spin
-        - 10: Shoot
-        - 11: End Turn
+        A move is an integer:
+        - 0..(8*n*n - 1): Place a piece at square (r,c) with rotation p in [0..7].
+                           Encoding: move = p*(n*n) + r*n + c
+        - 8*n*n: SPIN
+        - 8*n*n + 1: SHOOT
+        - 8*n*n + 2: END_TURN
         """
         moves = []
 
+        PLACEMENT_BASE = 0
+        SPECIAL_BASE = 8 * self.n * self.n
+
         # 1. PLACE
         if not self.has_placed:
-            for j in range(self.n):
+            for p in range(8):
                 for r in range(self.n):
                     for c in range(self.n):
                         if self.pieces[r, c] == 0:
-                            moves.append((r * self.n + c)+(j*9))
+                            moves.append(PLACEMENT_BASE + p*(self.n*self.n) + (r * self.n + c))
 
         # 2. Actions that cost an action point
         if self.actions_left > 0:
             # SPIN possible if there's at least one piece (and token can't be the only piece that blocks this)
             if np.count_nonzero(self.pieces) > 1 or (np.count_nonzero(self.pieces) == 1 and not self.token_active):
-                 moves.append(9) # SPIN
+                 moves.append(SPECIAL_BASE) # SPIN
 
             # SHOOT possible if there are valid targets
             if self._has_valid_targets(player):
-                moves.append(10) # SHOOT
+                moves.append(SPECIAL_BASE + 1) # SHOOT
 
         # 3. END_TURN
         if self.has_placed or np.count_nonzero(self.pieces) == self.n * self.n:
-            moves.append(11) # END TURN
+            moves.append(SPECIAL_BASE + 2) # END TURN
 
         return moves
 
@@ -134,22 +138,24 @@ class Board():
     def execute_move(self, move_idx, player):
         """Perform the given move on the board."""
 
-        if 0 <= move_idx <= 71: # PLACE
-            p, mod = divmod(move_idx,9)
+        SPECIAL_BASE = 8 * self.n * self.n
+
+        if 0 <= move_idx < SPECIAL_BASE: # PLACE
+            p, mod = divmod(move_idx, self.n * self.n)
             r, c = divmod(mod, self.n)
             assert self.pieces[r, c] == 0 and not self.has_placed
             self.pieces[r, c] = player
             self.has_shield_states[r, c] = 1  # new piece gets a shield
-            self.rotations[r, c] = p-1
+            self.rotations[r, c] = p  # 0..7
             self.has_placed = True
             self.last_placed = (r, c)
 
-        elif move_idx == 72: # SPIN
+        elif move_idx == SPECIAL_BASE: # SPIN
             assert self.actions_left > 0
             self.actions_left -= 1
             self.rotations = (self.rotations + 1) % 8
 
-        elif move_idx == 73: # SHOOT
+        elif move_idx == SPECIAL_BASE + 1: # SHOOT
             assert self.actions_left > 0
 
             # 1) Gather all hits (first target in each ray)
@@ -286,7 +292,7 @@ class Board():
 
             self.actions_left -= 1
 
-        elif move_idx == 74: # END_TURN
+        elif move_idx == SPECIAL_BASE + 2: # END_TURN
             self.turn_number += 1
             self.actions_left = 2
             self.has_placed = False
