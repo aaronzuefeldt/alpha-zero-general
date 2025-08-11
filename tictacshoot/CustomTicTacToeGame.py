@@ -109,6 +109,8 @@ class CustomTicTacToeGame(Game):
                 elif piece != 0:
                     rot = b.rotations[r, c]
                     symbol = self.symbols[piece][rot]
+                    if b.has_shield_states[r,c]==1:
+                        symbol="("+symbol+")"
                 else:
                     symbol = self.symbols[0]
 
