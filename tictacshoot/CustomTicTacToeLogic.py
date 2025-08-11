@@ -162,7 +162,7 @@ class Board():
             hits = {}  # (r,c) -> dir_idx that hit it (first one encountered is enough)
             for r_start in range(self.n):
                 for c_start in range(self.n):
-                    if self.pieces[r_start, c_start] == player:
+                    if self.pieces[r_start, c_start] == player and last_placed != (r_start, c_start):
                         # Special token cannot shoot while active
                         if self.token_active and r_start == 2 and c_start == 1:
                             continue
