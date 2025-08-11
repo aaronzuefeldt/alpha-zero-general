@@ -44,7 +44,7 @@ class CustomTicTacToeGame(Game):
         b = self._decode_board(board)
         b.execute_move(action, player)
         next_player = -player if action == self.ACTION_END_TURN else player
-        self.display(board)
+        # self.display(board)
         return self._encode_board(b), next_player
 
     def getValidMoves(self, board, player):
