@@ -292,7 +292,7 @@ class Board():
 
             self.actions_left -= 1
 
-        elif move_idx == SPECIAL_BASE + 2: # END_TURN
+        else: # END_TURN
             self.turn_number += 1
             self.actions_left = 2
             self.has_placed = False
