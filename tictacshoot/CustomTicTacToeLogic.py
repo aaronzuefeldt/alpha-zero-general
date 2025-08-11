@@ -38,7 +38,7 @@ class Board():
         self.turn_number = 0
         self.actions_left = 2
         self.has_placed = False
-        self.last_placed = (2,1)
+        self.last_placed = None
         self.token_active = True
 
     # ---------------------- Helpers ----------------------
@@ -296,3 +296,4 @@ class Board():
             self.turn_number += 1
             self.actions_left = 2
             self.has_placed = False
+            self.last_placed = None
