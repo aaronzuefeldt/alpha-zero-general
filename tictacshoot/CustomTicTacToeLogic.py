@@ -200,17 +200,18 @@ class Board():
             for (r,c) in will_die:
                 occ[r, c] = False  # consider them empty for slide planning
 
-            def plan_slide_from(rc, dir_idx):
+            def plan_slide_from(rc, hit_dir_idx):
                 r0, c0 = rc
                 origin_idx = self._rc_to_idx(r0, c0)
-                cur_dir_idx = dir_idx
-                for attempt in (1,2,3):
+
+                # Try: straight, then +90°, then +180° (relative to the ORIGINAL hit dir)
+                for cur_dir_idx in (hit_dir_idx, (hit_dir_idx + 2) % 8, (hit_dir_idx + 4) % 8):
                     j = 1
                     dr, dc = self.DIRECTIONS[cur_dir_idx]
                     while True:
                         rr = r0 + dr * j
                         cc = c0 + dc * j
-                        # stop when out of bounds or blocked (occupied in occ)
+                        # stop when out of bounds or blocked
                         if not self._in_bounds(rr, cc) or occ[rr, cc]:
                             if j > 1:
                                 rr2 = r0 + dr * (j - 1)
@@ -222,12 +223,13 @@ class Board():
                                 slide_targets.setdefault(dest_idx, []).append([origin_idx, prev_idx, j])
                                 return dest_idx
                             else:
-                                # immediate block -> rotate and retry
-                                cur_dir_idx = self._rotate_dir_idx_for_slide(cur_dir_idx, attempt)
-                                break  # break inner while to change direction
+                                # immediate block -> try the next candidate direction
+                                break
                         else:
                             j += 1
-                # No valid slide; stays in place but shield is removed
+
+                # No valid slide found: consume shield in place
+                slide_targets.setdefault(origin_idx, []).append([origin_idx, origin_idx, 0])
                 return origin_idx
 
             for rc, dir_idx in will_slide.items():
