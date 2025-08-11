@@ -105,7 +105,7 @@ class Board():
         """Checks if a shoot action would have any effect."""
         for r_start in range(self.n):
             for c_start in range(self.n):
-                if self.pieces[r_start, c_start] == player:
+                if self.pieces[r_start, c_start] == player and self.last_placed != (r_start, c_start):
                     # Special token at (2,1) cannot shoot while active
                     if self.token_active and r_start == 2 and c_start == 1:
                         continue
