@@ -297,3 +297,4 @@ class Board():
             self.actions_left = 2
             self.has_placed = False
             self.last_placed = None
+        self.display()
