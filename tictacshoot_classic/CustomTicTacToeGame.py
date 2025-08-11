@@ -50,10 +50,10 @@ class CustomTicTacToeGame(Game):
         legal_moves = b.get_legal_moves(player)
         
         for move_idx in legal_moves:
-            if 0 <= move_idx <= 71: valids[move_idx] = 1
-            elif move_idx == 72: valids[self.ACTION_SPIN] = 1
-            elif move_idx == 73: valids[self.ACTION_SHOOT] = 1
-            elif move_idx == 74: valids[self.ACTION_END_TURN] = 1
+            if 0 <= move_idx <= 8: valids[move_idx] = 1
+            elif move_idx == 9: valids[self.ACTION_SPIN] = 1
+            elif move_idx == 10: valids[self.ACTION_SHOOT] = 1
+            elif move_idx == 11: valids[self.ACTION_END_TURN] = 1
         
         return np.array(valids)
 
@@ -114,16 +114,13 @@ class CustomTicTacToeGame(Game):
     def _encode_board(self, b):
         """ Encodes the Board object into a NumPy array for the NN. """
         # 6 planes: pieces, rotations, actions_left, has_placed, turn_number, token
-        board_state = np.zeros((7, self.n, self.n), dtype=float)
+        board_state = np.zeros((6, self.n, self.n), dtype=float)
         board_state[0] = b.pieces
         board_state[1] = b.rotations
-        board_state[2] = b.has_shield_states
-        board_state[3].fill(b.actions_left)
-        if b.last_placed is not None:
-            r, c = b.last_placed
-            board_state[5, r, c] = 1.0
-        board_state[5].fill(b.turn_number)
-        board_state[6].fill(1 if b.token_active else 0)
+        board_state[2].fill(b.actions_left)
+        board_state[3].fill(1 if b.has_placed else 0)
+        board_state[4].fill(b.turn_number)
+        board_state[5].fill(1 if b.token_active else 0)
         return board_state
     
     def _decode_board(self, board_state):
@@ -131,13 +128,8 @@ class CustomTicTacToeGame(Game):
         b = Board(self.n)
         b.pieces = np.array(board_state[0], dtype=int)
         b.rotations = np.array(board_state[1], dtype=int)
-        b.has_shield_states = np.array(board_state[2], dtype=int)
-        b.actions_left = int(board_state[3, 0, 0])
-
-        ys, xs = np.where(board_state[5] == 1)
-        b.last_placed = (int(ys[0]), int(xs[0])) if len(ys) else None
-        b.has_placed = b.last_placed != None
-
-        b.turn_number = int(board_state[5, 0, 0])
-        b.token_active = bool(board_state[6, 0, 0])
+        b.actions_left = int(board_state[2, 0, 0])
+        b.has_placed = bool(board_state[3, 0, 0])
+        b.turn_number = int(board_state[4, 0, 0])
+        b.token_active = bool(board_state[5, 0, 0])
         return b
