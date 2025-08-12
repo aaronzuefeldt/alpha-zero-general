@@ -71,7 +71,7 @@ class CustomTicTacToeGame(Game):
         if win_status != 0:
             return win_status * player # 1 if current player won, -1 if they lost
 
-        if b.turn_number > 999: 
+        if b.turn_number > 500: 
             return 1e-4
 
         return 0 # Game not over
