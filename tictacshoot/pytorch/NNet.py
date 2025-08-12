@@ -74,8 +74,10 @@ class NNetWrapper(NeuralNet):
     def predict(self, board):
         start = time.time()
 
-        board = torch.FloatTensor(board.astype(np.float64))
-        if args.cuda: board = board.contiguous().cuda()
+        board = torch.from_numpy(board).float().unsqueeze(0)  # (1, C, H, W)
+        if args.cuda:
+            board = board.cuda(non_blocking=True)
+
         
         # Reshape the board to (1, C, H, W) for a batch of size 1
         board = board.view(1, *self.input_shape)
