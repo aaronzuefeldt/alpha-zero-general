@@ -44,7 +44,7 @@ if USE_PYTORCH:
     # NOTE: You must have a trained model for this to work.
     # To play against a random opponent, comment out n1.load_checkpoint and set player2 = rp
     # To train a model, run main.py.
-    n1.load_checkpoint('./pretrained_models/tictacshoot/pytorch/', 'best.pth.tar')
+    n1.load_checkpoint('/pretrained_models/tictacshoot/pytorch/', 'best.pth.tar')
 else: # Keras
     n1.load_checkpoint('./pretrained_models/tictacshoot/keras/', 'best.h5')
 
