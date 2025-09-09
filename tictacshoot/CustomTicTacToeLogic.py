@@ -151,148 +151,15 @@ class Board():
             self.last_placed = (r, c)
 
         elif move_idx == SPECIAL_BASE: # SPIN
-            assert self.actions_left > 0
             self.actions_left -= 1
+            assert self.actions_left > 0
             self.rotations = (self.rotations + 1) % 8
 
         elif move_idx == SPECIAL_BASE + 1: # SHOOT
-            assert self.actions_left > 0
-
-            # 1) Gather all hits (first target in each ray)
-            hits = {}  # (r,c) -> dir_idx that hit it (first one encountered is enough)
-            for r_start in range(self.n):
-                for c_start in range(self.n):
-                    if self.pieces[r_start, c_start] == player and self.last_placed != (r_start, c_start):
-                        # Special token cannot shoot while active
-                        if self.token_active and r_start == 2 and c_start == 1:
-                            continue
-                        dir_idx = int(self.rotations[r_start, c_start])
-                        dr, dc = self.DIRECTIONS[dir_idx]
-                        r, c = r_start + dr, c_start + dc
-                        while self._in_bounds(r, c):
-                            if self.pieces[r, c] != 0:
-                                hits.setdefault((r, c), dir_idx)  # keep first shooter direction
-                                break
-                            r, c = r + dr, c + dc
-
-            if not hits:
-                # No effect; still consumes an action point
-                self.actions_left -= 1
-                return
-
-            # 2) Partition into removals vs slides based on shields
-            will_die = set()
-            will_slide = {}  # (r,c) -> dir_idx
-            for (r, c), dir_idx in hits.items():
-                if self.has_shield_states[r, c] == 0:
-                    will_die.add((r, c))
-                else:
-                    will_slide[(r, c)] = dir_idx
-
-            # Token deactivation if it gets hit and dies
-            if (2, 1) in will_die:
-                self.token_active = False
-
-            # 3) Plan sliding destinations (treat dying pieces as empty when planning)
-            # slide_targets: dest_idx -> list of [origin_idx, prev_idx, distance]
-            slide_targets = {}
-            occ = (self.pieces != 0).copy()
-            for (r,c) in will_die:
-                occ[r, c] = False  # consider them empty for slide planning
-
-            def plan_slide_from(rc, hit_dir_idx):
-                r0, c0 = rc
-                origin_idx = self._rc_to_idx(r0, c0)
-
-                # Try: straight, then +90°, then +180° (relative to the ORIGINAL hit dir)
-                for cur_dir_idx in (hit_dir_idx, (hit_dir_idx + 2) % 8, (hit_dir_idx + 4) % 8):
-                    j = 1
-                    dr, dc = self.DIRECTIONS[cur_dir_idx]
-                    while True:
-                        rr = r0 + dr * j
-                        cc = c0 + dc * j
-                        # stop when out of bounds or blocked
-                        if not self._in_bounds(rr, cc) or occ[rr, cc]:
-                            if j > 1:
-                                rr2 = r0 + dr * (j - 1)
-                                cc2 = c0 + dc * (j - 1)
-                                rr3 = r0 + dr * (j - 2)
-                                cc3 = c0 + dc * (j - 2)
-                                dest_idx = self._rc_to_idx(rr2, cc2)
-                                prev_idx = self._rc_to_idx(rr3, cc3)
-                                slide_targets.setdefault(dest_idx, []).append([origin_idx, prev_idx, j])
-                                return dest_idx
-                            else:
-                                # immediate block -> try the next candidate direction
-                                break
-                        else:
-                            j += 1
-
-                # No valid slide found: consume shield in place
-                slide_targets.setdefault(origin_idx, []).append([origin_idx, origin_idx, 0])
-                return origin_idx
-
-            for rc, dir_idx in will_slide.items():
-                plan_slide_from(rc, dir_idx)
-
-            # 4) Resolve overlapping slide destinations
-            #    Loop until every destination has at most one contender
-            while True:
-                overlaps = 0
-                for dest_idx, contenders in list(slide_targets.items()):
-                    if len(contenders) > 1:
-                        overlaps += 1
-                        # sort by distance (ascending)
-                        contenders.sort(key=lambda x: x[2])
-                        # compute index "step" from prev -> dest for backoff math
-                        # Using linear indices is safe because step is constant along a ray: step = dest - prev
-                        step = dest_idx - contenders[0][1]  # (dr*n + dc)
-                        if len(contenders) >= 2 and contenders[0][2] == contenders[1][2]:
-                            # tie: push everyone back one cell
-                            for origin_idx, prev_idx, dist in contenders:
-                                new_dest = prev_idx
-                                new_prev = prev_idx - step  # 2*prev - dest
-                                slide_targets.setdefault(new_dest, []).append([origin_idx, new_prev, dist - 1])
-                            slide_targets[dest_idx] = []
-                        else:
-                            # winner stays; everyone else backs off one
-                            winner = contenders[0]
-                            losers = contenders[1:]
-                            slide_targets[dest_idx] = [winner]
-                            for origin_idx, prev_idx, dist in losers:
-                                new_dest = prev_idx
-                                new_prev = prev_idx - step
-                                slide_targets.setdefault(new_dest, []).append([origin_idx, new_prev, dist - 1])
-                if overlaps == 0:
-                    break  # conflict-free
-
-            # 5) Apply removals
-            for (r, c) in will_die:
-                self.pieces[r, c] = 0
-                self.rotations[r, c] = 0
-                self.has_shield_states[r, c] = 0
-
-            # 6) Apply slides
-            for dest_idx, contenders in slide_targets.items():
-                if len(contenders) == 1:
-                    origin_idx, prev_idx, dist = contenders[0]
-                    if dest_idx != origin_idx:
-                        orr, occc = self._idx_to_rc(origin_idx)
-                        drr, dcc = self._idx_to_rc(dest_idx)
-                        # move the piece
-                        self.pieces[drr, dcc] = self.pieces[orr, occc]
-                        self.rotations[drr, dcc] = self.rotations[orr, occc]
-                        self.has_shield_states[drr, dcc] = 0  # shield consumed
-                        # clear origin
-                        self.pieces[orr, occc] = 0
-                        self.rotations[orr, occc] = 0
-                        self.has_shield_states[orr, occc] = 0
-                    else:
-                        # no move, but shield still consumed
-                        r0, c0 = self._idx_to_rc(origin_idx)
-                        self.has_shield_states[r0, c0] = 0
-
             self.actions_left -= 1
+            assert self.actions_left > 0
+            shoot()
+
 
         else: # END_TURN
             self.turn_number += 1
@@ -301,3 +168,177 @@ class Board():
             self.last_placed = None
         
 
+
+def shoot():
+    # Assume self.n, self.pieces, self.rotations, self.last_placed, etc., are part of a class structure.
+    # The DIRECTIONS array is assumed to be defined elsewhere in the class.
+    # e.g., self.DIRECTIONS = [(0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1)] # 8 dirs
+
+    # 1) Gather all hits for every piece
+    # Changed from a dictionary to a list of tuples to allow multiple hits on the same target
+    all_shots = []
+    for r_start in range(self.n):
+        for c_start in range(self.n):
+            # This condition should match the C# logic for what constitutes a "shooter"
+            is_shooter = self.pieces[r_start, c_start] == player and self.last_placed != (r_start, c_start)
+            if is_shooter:
+                dir_idx = int(self.rotations[r_start, c_start])
+                dr, dc = self.DIRECTIONS[dir_idx]
+                r, c = r_start + dr, c_start + dc
+                while self._in_bounds(r, c):
+                    if self.pieces[r, c] != 0:
+                        # Append a tuple: (target_coords, shot_direction_index)
+                        all_shots.append(((r, c), dir_idx))
+                        break
+                    r, c = r + dr, c + dc
+
+    if not all_shots:
+        return
+
+    # 2) Tally hits and partition into removals vs slides
+    # This structure now correctly handles multiple hits on one target
+    hits = {}  # (r,c) -> list of directions it was hit from
+    for (r, c), dir_idx in all_shots:
+        hits.setdefault((r, c), []).append(dir_idx)
+
+    will_die = set()
+    will_slide = {}  # (r,c) -> dir_idx (only the first hit matters for slide direction)
+    for (r, c), dir_indices in hits.items():
+        # In C#, hp can be > 2. Here we simulate it with shields.
+        # A piece dies if it takes damage equal to or greater than its HP.
+        # No shield = 1 HP. Shield = 2 HP.
+        hp = 2 if self.has_shield_states[r, c] > 0 else 1
+        damage = len(dir_indices)
+
+        if damage >= hp:
+            will_die.add((r, c))
+        else:
+            # It survives and slides. The slide direction is determined by the first shot.
+            will_slide[(r, c)] = dir_indices[0]
+
+    # 3) Plan sliding destinations (using the CURRENT board state)
+    # This is the MAJOR CHANGE: We no longer treat dying pieces as empty.
+    # We use the real board state for obstacle detection, matching the C# logic.
+    slide_targets = {}
+    # Create a copy of the current board occupancy for pathfinding.
+    # This ensures that all slide calculations for this turn are based on the same initial state.
+    occ = (self.pieces != 0).copy()
+
+    def plan_slide_from(rc, hit_dir_idx):
+        r0, c0 = rc
+        origin_idx = self._rc_to_idx(r0, c0)
+
+        # REVISED fallback directions to match C#: straight, +90, -90
+        # +90 degrees is +2 in an 8-direction index. -90 degrees is -2 (or +6).
+        # The original hit direction is the direction the SHOT came from.
+        # The piece slides AWAY from the shot, so the primary slide direction is opposite (+4).
+        slide_dir_base = (hit_dir_idx + 4) % 8
+        
+        # Attempt 1: Straight back
+        # Attempt 2: +90 degrees from straight back
+        # Attempt 3: -90 degrees from straight back
+        direction_candidates = [
+            slide_dir_base,
+            (slide_dir_base + 2) % 8,
+            (slide_dir_base - 2 + 8) % 8 # Using +8 to handle negative results
+        ]
+
+        for cur_dir_idx in direction_candidates:
+            j = 1
+            dr, dc = self.DIRECTIONS[cur_dir_idx]
+            while True:
+                rr = r0 + dr * j
+                cc = c0 + dc * j
+                # Stop when out of bounds or blocked by ANY piece on the board at the start of the turn
+                if not self._in_bounds(rr, cc) or occ[rr, cc]:
+                    if j > 1:
+                        # Valid slide found
+                        rr2 = r0 + dr * (j - 1)
+                        cc2 = c0 + dc * (j - 1)
+                        rr3 = r0 + dr * (j - 2)
+                        cc3 = c0 + dc * (j - 2)
+                        dest_idx = self._rc_to_idx(rr2, cc2)
+                        prev_idx = self._rc_to_idx(rr3, cc3)
+                        slide_targets.setdefault(dest_idx, []).append([origin_idx, prev_idx, j])
+                        return dest_idx
+                    else:
+                        # Immediately blocked, try the next candidate direction
+                        break
+                else:
+                    j += 1
+        
+        # If all slide directions were blocked, it doesn't move.
+        # It still consumes its shield, which is handled later.
+        slide_targets.setdefault(origin_idx, []).append([origin_idx, origin_idx, 0])
+        return origin_idx
+
+    for rc, dir_idx in will_slide.items():
+        plan_slide_from(rc, dir_idx)
+
+    # 4) Resolve overlapping slide destinations (This logic remains the same as it's sound)
+    while True:
+        overlaps = 0
+        # Use list(slide_targets.items()) to create a copy, allowing modification during iteration
+        for dest_idx, contenders in list(slide_targets.items()):
+            if len(contenders) > 1:
+                overlaps += 1
+                contenders.sort(key=lambda x: x[2])
+                step = dest_idx - contenders[0][1]
+                if len(contenders) >= 2 and contenders[0][2] == contenders[1][2]:
+                    for origin_idx, prev_idx, dist in contenders:
+                        new_dest = prev_idx
+                        new_prev = prev_idx - step
+                        slide_targets.setdefault(new_dest, []).append([origin_idx, new_prev, dist - 1])
+                    slide_targets.pop(dest_idx, None) # Use pop for safer removal
+                else:
+                    winner = contenders[0]
+                    losers = contenders[1:]
+                    slide_targets[dest_idx] = [winner]
+                    for origin_idx, prev_idx, dist in losers:
+                        new_dest = prev_idx
+                        new_prev = prev_idx - step
+                        slide_targets.setdefault(new_dest, []).append([origin_idx, new_prev, dist - 1])
+        if overlaps == 0:
+            break
+
+    # 5) Apply removals
+    for (r, c) in will_die:
+        self.pieces[r, c] = 0
+        self.rotations[r, c] = 0
+        self.has_shield_states[r, c] = 0
+
+    # 6) Apply slides
+    # Create a new board state to avoid issues with overwriting pieces before they are moved
+    new_pieces = self.pieces.copy()
+    new_rotations = self.rotations.copy()
+    new_shields = self.has_shield_states.copy()
+
+    # First, clear all original positions of pieces that will successfully move
+    for dest_idx, contenders in slide_targets.items():
+        if len(contenders) == 1:
+            origin_idx, _, _ = contenders[0]
+            if dest_idx != origin_idx:
+                orr, occc = self._idx_to_rc(origin_idx)
+                new_pieces[orr, occc] = 0
+                new_rotations[orr, occc] = 0
+                new_shields[orr, occc] = 0
+            else: # Piece was hit but didn't move, just lose shield
+                r0, c0 = self._idx_to_rc(origin_idx)
+                new_shields[r0, c0] = 0
+
+    # Second, place all moved pieces in their new destinations
+    for dest_idx, contenders in slide_targets.items():
+        if len(contenders) == 1 and dest_idx != contenders[0][0]:
+            origin_idx, _, _ = contenders[0]
+            orr, occc = self._idx_to_rc(origin_idx)
+            drr, dcc = self._idx_to_rc(dest_idx)
+            
+            # Move the piece's data from original board to new board
+            new_pieces[drr, dcc] = self.pieces[orr, occc]
+            new_rotations[drr, dcc] = self.rotations[orr, occc]
+            new_shields[drr, dcc] = 0  # Shield is always consumed
+
+    # Finally, update the actual game state
+    self.pieces = new_pieces
+    self.rotations = new_rotations
+    self.has_shield_states = new_shields
