@@ -151,14 +151,14 @@ class Board():
             self.last_placed = (r, c)
 
         elif move_idx == SPECIAL_BASE: # SPIN
-            self.actions_left -= 1
             assert self.actions_left > 0
             self.rotations = (self.rotations + 1) % 8
+            self.actions_left -= 1
 
         elif move_idx == SPECIAL_BASE + 1: # SHOOT
-            self.actions_left -= 1
             assert self.actions_left > 0
             shoot()
+            self.actions_left -= 1
 
 
         else: # END_TURN
