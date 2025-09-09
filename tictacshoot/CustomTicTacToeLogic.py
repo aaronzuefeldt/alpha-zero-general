@@ -157,7 +157,7 @@ class Board():
 
         elif move_idx == SPECIAL_BASE + 1: # SHOOT
             assert self.actions_left > 0
-            shoot()
+            shoot(self)
             self.actions_left -= 1
 
 
@@ -169,7 +169,7 @@ class Board():
         
 
 
-def shoot():
+def shoot(self):
     # Assume self.n, self.pieces, self.rotations, self.last_placed, etc., are part of a class structure.
     # The DIRECTIONS array is assumed to be defined elsewhere in the class.
     # e.g., self.DIRECTIONS = [(0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1)] # 8 dirs
