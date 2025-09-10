@@ -138,7 +138,7 @@ class Board():
 
         elif move_idx == SPECIAL_BASE + 1: # SHOOT
             assert self.actions_left > 0
-            self.shoot(self, player)
+            self.shoot(player)
             self.actions_left -= 1
 
 
