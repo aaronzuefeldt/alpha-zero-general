@@ -82,9 +82,106 @@ class CustomTicTacToeGame(Game):
         canonical_board[0, :, :] *= player 
         return canonical_board
 
+
     def getSymmetries(self, board, pi):
         # Symmetries are disabled due to the directional nature of rotations.
-        return [(board, pi)]
+        # return [(board, pi)]  <-- OLD LINE
+        
+        # NEW LINE:
+        return self.get_rotational_symmetries(board, pi, self.n)
+    
+
+    def get_rotational_symmetries(board, pi, n=3):
+        """
+        Generates rotational symmetries for a given board state and policy vector.
+
+        Caveats:
+        - Symmetries are NOT generated if the special token is active, as its
+        position at (2,1) is not rotationally symmetric.
+        - Only clockwise rotations (90, 180, 270 degrees) are generated. Reflections
+        are excluded as game pieces only rotate clockwise.
+
+        Args:
+            board (np.array): The board state, with shape (7, n, n).
+            pi (np.array): The policy vector of size (n*n*8 + 3).
+            n (int): The dimension of the board (e.g., 3 for a 3x3 board).
+
+        Returns:
+            list: A list of (board, pi) tuples, including the original.
+        """
+        # Caveat: There are never rotations while the token is active.
+        # The token's fixed starting position (2,1) breaks rotational symmetry.
+        is_token_active = board[6, 0, 0]
+        if is_token_active:
+            return [(board, pi)]
+
+        symmetries = []
+        current_board, current_pi = np.copy(board), np.copy(pi)
+        
+        # The original orientation is always included.
+        symmetries.append((current_board, current_pi))
+
+        # Generate the 3 clockwise rotations (90, 180, 270 degrees).
+        for i in range(3):
+            # --- 1. Rotate the board state ---
+            
+            # The new board is a 90-degree clockwise rotation of the previous one.
+            rotated_board = np.copy(symmetries[-1][0])
+            
+            # These planes contain spatial information and need to be rotated.
+            # np.rot90(m, k=-1) performs a 90-degree clockwise rotation.
+            for plane_idx in [0, 1, 2, 4]: # pieces, rotations, shields, last_placed
+                rotated_board[plane_idx] = np.rot90(rotated_board[plane_idx], k=-1)
+                
+            # These planes contain scalar game-state info and are not rotated.
+            # [3]: actions_left, [5]: turn_number, [6]: token_active
+
+            # --- 2. Adjust the piece rotation values ---
+            # When the board turns, the direction each piece faces also changes.
+            # A 90-degree clockwise board rotation corresponds to adding 2 to the
+            # rotation index (0-7), as each index step is 45 degrees.
+            
+            # Only update directions for squares that actually contain a piece.
+            piece_mask = rotated_board[0] != 0
+            
+            # Add 2 to the rotation index, modulo 8 to wrap around.
+            current_rotations = rotated_board[1][piece_mask]
+            rotated_board[1][piece_mask] = (current_rotations + 2) % 8
+            
+            # --- 3. Rotate the policy vector ---
+            
+            # The previous policy vector is the one we are rotating.
+            pi_to_rotate = symmetries[-1][1]
+            rotated_pi = np.zeros_like(pi_to_rotate)
+            
+            action_size_placements = n * n * 8
+            
+            # The special actions (SPIN, SHOOT, END_TURN) are not spatial.
+            rotated_pi[action_size_placements:] = pi_to_rotate[action_size_placements:]
+            
+            # Remap the placement probabilities.
+            n_sq = n * n
+            for r in range(n):
+                for c in range(n):
+                    for rot_idx in range(8):
+                        # Original action's position and rotation
+                        old_pos = r * n + c
+                        old_action = rot_idx * n_sq + old_pos
+
+                        # New position and rotation after a 90-degree CW turn
+                        new_r, new_c = c, n - 1 - r # Coordinate transformation
+                        new_pos = new_r * n + new_c
+                        new_rot_idx = (rot_idx + 2) % 8 # Rotation value transformation
+                        new_action = new_rot_idx * n_sq + new_pos
+                        
+                        # Move the probability to the new action index
+                        rotated_pi[new_action] = pi_to_rotate[old_action]
+            
+            # Add the new symmetry to our list
+            symmetries.append((rotated_board, rotated_pi))
+            
+        return symmetries
+
 
     def stringRepresentation(self, board):
         return board.tobytes()
