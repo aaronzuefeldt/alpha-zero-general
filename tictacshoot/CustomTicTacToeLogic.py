@@ -41,25 +41,6 @@ class Board():
         self.last_placed = None
         self.token_active = True
 
-    # ---------------------- Helpers ----------------------
-    def _in_bounds(self, r, c):
-        return 0 <= r < self.n and 0 <= c < self.n
-
-    def _rc_to_idx(self, r, c):
-        return r * self.n + c
-
-    def _idx_to_rc(self, idx):
-        return divmod(idx, self.n)
-
-    def _rotate_dir_idx_for_slide(self, dir_idx, attempt):
-        """
-        attempt: 1,2,3  -> rotate +90°, +180°, +90° respectively.
-        Using 8-direction ring, +2 steps = +90°, +4 = +180°.
-        """
-        if attempt == 2:
-            return (dir_idx + 4) % 8
-        else: # 1 or 3
-            return (dir_idx + 2) % 8
 
     # ---------------------- Rules / API ----------------------
     def get_legal_moves(self, player):
@@ -157,7 +138,7 @@ class Board():
 
         elif move_idx == SPECIAL_BASE + 1: # SHOOT
             assert self.actions_left > 0
-            shoot(self, player)
+            self.shoot(self, player)
             self.actions_left -= 1
 
 
