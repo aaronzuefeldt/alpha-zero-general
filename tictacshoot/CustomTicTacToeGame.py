@@ -91,7 +91,7 @@ class CustomTicTacToeGame(Game):
         return self.get_rotational_symmetries(board, pi, self.n)
     
 
-    def get_rotational_symmetries(board, pi, n=3):
+    def get_rotational_symmetries(self, board, pi, n=3):
         """
         Generates rotational symmetries for a given board state and policy vector.
 
