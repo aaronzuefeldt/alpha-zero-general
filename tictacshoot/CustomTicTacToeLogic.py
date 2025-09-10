@@ -173,8 +173,6 @@ class Board():
                         r, c = r + dr, c + dc
     
         if not hits:
-            # No effect; still consumes an action point
-            self.actions_left -= 1
             return
     
         # 2) Partition into removals vs slides based on shields
@@ -313,8 +311,6 @@ class Board():
                     # No move, but shield still consumed
                     r0, c0 = self._idx_to_rc(origin_idx)
                     self.has_shield_states[r0, c0] = 0
-    
-        self.actions_left -= 1
     
     def _in_bounds(self, r, c):
         return 0 <= r < self.n and 0 <= c < self.n
