@@ -1,4 +1,4 @@
-# tictactoe/pytorch/CustomTicTacToeNNet.py
+# CustomTicTacToe/pytorch/ResNetNNet.py  (Rename the file for clarity)
 
 import sys
 sys.path.append('..')
@@ -9,54 +9,77 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CustomTicTacToeNNet(nn.Module):
+# --- The new Residual Block ---
+class ResidualBlock(nn.Module):
+    def __init__(self, num_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(num_channels, num_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(num_channels)
+        self.conv2 = nn.Conv2d(num_channels, num_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(num_channels)
+
+    def forward(self, x):
+        identity = x
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += identity
+        return F.relu(out)
+
+# --- The Redesigned Main Network ---
+class ResNetNNet(nn.Module): # Renamed for clarity
     def __init__(self, game, args):
+        super(ResNetNNet, self).__init__()
         # --- Game Parameters ---
-        self.input_shape = game.getInitBoard().shape # (5, 3, 3)
+        self.input_shape = game.getInitBoard().shape
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
         self.args = args
+        
+        # --- Neural Net Architecture ---
 
-        super(CustomTicTacToeNNet, self).__init__()
-        # Use input_shape[0] (e.g., 5) for the number of input channels
-        self.conv1 = nn.Conv2d(self.input_shape[0], args.num_channels, 3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(args.num_channels, args.num_channels, 3, stride=1, padding=1)
-        # Add padding to conv3 and conv4 to handle the small 3x3 board size
-        self.conv3 = nn.Conv2d(args.num_channels, args.num_channels, 3, stride=1, padding=1)
-        self.conv4 = nn.Conv2d(args.num_channels, args.num_channels, 3, stride=1, padding=1)
+        # 1. Initial Convolutional "Stem"
+        # This takes the raw input planes and creates the feature maps for the ResNet tower.
+        self.conv_stem = nn.Conv2d(self.input_shape[0], args.num_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn_stem = nn.BatchNorm2d(args.num_channels)
 
-        self.bn1 = nn.BatchNorm2d(args.num_channels)
-        self.bn2 = nn.BatchNorm2d(args.num_channels)
-        self.bn3 = nn.BatchNorm2d(args.num_channels)
-        self.bn4 = nn.BatchNorm2d(args.num_channels)
+        # 2. Residual "Tower"
+        # This is the body of the network. We stack N residual blocks.
+        self.res_tower = nn.ModuleList([ResidualBlock(args.num_channels) for _ in range(args.num_residual_blocks)])
 
-        # Recalculate the size of the fully connected layer's input
-        # With padding, the spatial dimensions remain 3x3.
-        fc_input_size = args.num_channels * self.board_x * self.board_y
-        self.fc1 = nn.Linear(fc_input_size, 1024)
-        self.fc_bn1 = nn.BatchNorm1d(1024)
+        # 3. Policy Head
+        # Takes the final feature maps and outputs move probabilities.
+        self.policy_conv = nn.Conv2d(args.num_channels, 2, kernel_size=1, stride=1)
+        self.policy_bn = nn.BatchNorm2d(2)
+        self.policy_fc = nn.Linear(2 * self.board_x * self.board_y, self.action_size)
 
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc_bn2 = nn.BatchNorm1d(512)
+        # 4. Value Head
+        # Takes the final feature maps and outputs a single value (-1 to 1).
+        self.value_conv = nn.Conv2d(args.num_channels, 1, kernel_size=1, stride=1)
+        self.value_bn = nn.BatchNorm2d(1)
+        self.value_fc1 = nn.Linear(1 * self.board_x * self.board_y, 256)
+        self.value_fc2 = nn.Linear(256, 1)
 
-        self.fc3 = nn.Linear(512, self.action_size) # Policy head
-        self.fc4 = nn.Linear(512, 1) # Value head
 
     def forward(self, s):
-        # s: batch_size x planes (5) x board_x x board_y
-        # The input 's' is already in the correct format, no initial view/reshape needed.
-        s = F.relu(self.bn1(self.conv1(s)))
-        s = F.relu(self.bn2(self.conv2(s)))
-        s = F.relu(self.bn3(self.conv3(s)))
-        s = F.relu(self.bn4(self.conv4(s)))
+        # Input 's' shape: batch_size x num_planes x board_x x board_y
         
-        # Flatten the output for the fully connected layers
-        s = s.view(-1, self.args.num_channels * self.board_x * self.board_y)
+        # Pass through the initial stem
+        s = F.relu(self.bn_stem(self.conv_stem(s)))
 
-        s = F.dropout(F.relu(self.fc_bn1(self.fc1(s))), p=self.args.dropout, training=self.training)
-        s = F.dropout(F.relu(self.fc_bn2(self.fc2(s))), p=self.args.dropout, training=self.training)
+        # Pass through the residual tower
+        for block in self.res_tower:
+            s = block(s)
+        
+        # --- Policy Head Path ---
+        pi = F.relu(self.policy_bn(self.policy_conv(s)))
+        pi = pi.view(-1, 2 * self.board_x * self.board_y)
+        pi = self.policy_fc(pi)
 
-        pi = self.fc3(s)
-        v = self.fc4(s)
+        # --- Value Head Path ---
+        v = F.relu(self.value_bn(self.value_conv(s)))
+        v = v.view(-1, 1 * self.board_x * self.board_y)
+        v = F.relu(self.value_fc1(v))
+        v = self.value_fc2(v)
 
+        # Final activations
         return F.log_softmax(pi, dim=1), torch.tanh(v)

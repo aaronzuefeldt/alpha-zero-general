@@ -1,4 +1,4 @@
-# tictactoe/pytorch/NNet.py
+# ConnectShoot/pytorch/NNet.py
 
 import os
 import sys
@@ -15,15 +15,16 @@ import torch
 import torch.optim as optim
 
 # Import our new custom PyTorch network
-from .CustomTicTacToeNNet import CustomTicTacToeNNet as onnet
+from .ResNetNNet import ResNetNNet as onnet
 
 args = dotdict({
     'lr': 0.001,
     'dropout': 0.3,
     'epochs': 10,
     'batch_size': 64,
-    'cuda': False,
-    'num_channels': 64,  # was 512
+    'cuda': True,
+    'num_channels': 128,
+    'num_residual_blocks': 10,
 })
 
 
