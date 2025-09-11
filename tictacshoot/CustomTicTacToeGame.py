@@ -83,8 +83,71 @@ class CustomTicTacToeGame(Game):
         return canonical_board
 
     def getSymmetries(self, board, pi):
-        # Symmetries are disabled due to the directional nature of rotations.
-        return [(board, pi)]
+
+        if board[6,0,0]==1:
+            return [(board, pi)]
+
+        n = self.n
+        ACTION_SIZE = 8 * n * n + 3
+        SPECIAL_BASE = 8 * n * n  # spin, shoot, end turn at +0,+1,+2
+
+        def to_board_state(x):
+            # Already an ndarray with expected shape?
+            if isinstance(x, np.ndarray):
+                if x.ndim == 3 and x.shape[0] >= 7:
+                    return x.copy()
+                # Sometimes a numpy scalar wrapping a Board object
+                if x.dtype == object and x.shape == ():
+                    x = x.item()
+            # A Board instance: encode it
+            if isinstance(x, Board):
+                return self._encode_board(x)
+            raise TypeError(f"Expected (7,n,n) ndarray or Board; got {type(x)}")
+
+        def rotate_coords_cw(r, c, k, n_):
+            for _ in range(k):
+                r, c = c, n_ - 1 - r
+            return r, c
+
+        board_state = to_board_state(board).astype(np.float32, copy=False)
+        pi_arr = np.asarray(pi).reshape(-1)
+        has_full_pi = (pi_arr.size == ACTION_SIZE)
+
+        syms = []
+        for k in range(4):  # 0, 90, 180, 270 CW
+            if k == 0:
+                b_rot = board_state.copy()
+            else:
+                b_rot = np.stack([np.rot90(board_state[p], -k) for p in range(board_state.shape[0])], axis=0)
+
+            # Fix rotations plane (idx 1) only where a piece exists (plane 0 != 0)
+            piece_mask = b_rot[0] != 0
+            rot_plane = b_rot[1].astype(np.int64)
+            rot_plane[piece_mask] = (rot_plane[piece_mask] + 2 * k) % 8
+            rot_plane[~piece_mask] = 0
+            b_rot[1] = rot_plane.astype(board_state.dtype)
+
+            # Policy remap (only if pi is the full vector)
+            if has_full_pi:
+                pi_rot = np.zeros_like(pi_arr)
+                # placement actions: index = p*(n*n) + r*n + c
+                for p_ori in range(8):
+                    for r in range(n):
+                        for c in range(n):
+                            idx = p_ori * (n * n) + (r * n + c)
+                            rr, cc = rotate_coords_cw(r, c, k, n)
+                            p_new = (p_ori + 2 * k) % 8
+                            idx_new = p_new * (n * n) + (rr * n + cc)
+                            pi_rot[idx_new] = pi_arr[idx]
+                # specials unchanged
+                pi_rot[SPECIAL_BASE:SPECIAL_BASE + 3] = pi_arr[SPECIAL_BASE:SPECIAL_BASE + 3]
+            else:
+                # Keep whatever 'pi' you passed through unchanged (safe for quick tests)
+                pi_rot = pi_arr.copy()
+
+            syms.append((b_rot, pi_rot))
+
+        return syms
 
     def stringRepresentation(self, board):
         return board.tobytes()
