@@ -15,7 +15,7 @@ import torch
 import torch.optim as optim
 
 # Import our new custom PyTorch network
-from .ResNetNNet import ResNetNNet as onnet
+from .CustomTicTacToeNNet import ResNetNNet as onnet
 
 args = dotdict({
     'lr': 0.001,
