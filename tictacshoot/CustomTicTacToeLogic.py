@@ -30,7 +30,10 @@ class Board():
         self.has_shield_states = np.zeros((self.n, self.n), dtype=int)
 
         # Player -1 ('X') starts with the special token at (2,1) with NO shield
-        self.pieces[2, 1] = -1 
+        token_index=7
+        self.token_column=token_index%n
+        self.token_row=(token_index-self.token_column)/n
+        self.pieces[self.token_row, self.token_column] = -1 
 
         # Rotation index (0-7) for each piece
         self.rotations = np.zeros((self.n, self.n), dtype=int)
@@ -88,7 +91,7 @@ class Board():
             for c_start in range(self.n):
                 if self.pieces[r_start, c_start] == player and self.last_placed != (r_start, c_start):
                     # Special token at (2,1) cannot shoot while active
-                    if self.token_active and r_start == 2 and c_start == 1:
+                    if self.token_active and r_start == self.token_row and c_start == self.token_column:
                         continue
 
                     rot_idx = self.rotations[r_start, c_start]
@@ -161,7 +164,7 @@ class Board():
             for c_start in range(self.n):
                 if self.pieces[r_start, c_start] == player and self.last_placed != (r_start, c_start):
                     # Special token cannot shoot while active
-                    if self.token_active and r_start == 2 and c_start == 1:
+                    if self.token_active and r_start == self.token_row and c_start == self.token_column:
                         continue
                     dir_idx = int(self.rotations[r_start, c_start])
                     dr, dc = self.DIRECTIONS[dir_idx]
@@ -185,7 +188,7 @@ class Board():
                 will_slide[(r, c)] = dir_idx
     
         # Token deactivation if it gets hit and dies
-        if (2, 1) in will_die:
+        if (self.token_row, self.token_column) in will_die:
             self.token_active = False
     
         # 3) Plan sliding destinations - FIXED LOGIC
