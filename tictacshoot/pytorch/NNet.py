@@ -25,12 +25,23 @@ args = dotdict({
     'cuda': True,
     'num_channels': 128,
     'num_residual_blocks': 10,
+    'grid_size' : 3
 })
 
 
 class NNetWrapper(NeuralNet):
     def __init__(self, game):
+
+        if hasattr(args, "grid_size") and isinstance(args.grid_size, int):
+            n = int(args.grid_size)
+            # mutate the passed-in Game so everyone shares the same size
+            game.n = n
+            game.action_size   = n*n*8 + 3
+            game.ACTION_SPIN   = n*n*8
+            game.ACTION_SHOOT  = n*n*8 + 1
+            game.ACTION_END_TURN = n*n*8 + 2  # matches Game.__init__ layout+
         self.nnet = onnet(game, args)
+
         self.input_shape = game.getInitBoard().shape
         self.action_size = game.getActionSize()
 
