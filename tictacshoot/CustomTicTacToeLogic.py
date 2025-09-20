@@ -31,9 +31,9 @@ class Board():
 
         # Player -1 ('X') starts with the special token at (2,1) with NO shield
         token_index=7
-        self.token_column=token_index%n
-        self.token_row=(token_index-self.token_column)/n
-        self.pieces[self.token_row, self.token_column] = -1 
+        self.token_row, self.token_column = divmod(token_index, n)
+        self.pieces[self.token_row, self.token_column] = -1
+
 
         # Rotation index (0-7) for each piece
         self.rotations = np.zeros((self.n, self.n), dtype=int)
