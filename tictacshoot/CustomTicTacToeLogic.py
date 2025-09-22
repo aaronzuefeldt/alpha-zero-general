@@ -104,20 +104,84 @@ class Board():
                         r, c = r + dr, c + dc
         return False
 
-    def check_win(self):
+    def check_win(self, win_len=3):
         """
-        Check whether a player has won.
-        Returns 1 if Player O wins, -1 if Player X wins, 0 for no win.
+        Check whether a player has won with `win_len` in a row on an m x n board.
+        Returns 1 if Player O (1) wins, -1 if Player X (-1) wins, 0 for no win.
         """
-        for player in [1, -1]:
-            # Rows/cols
-            for i in range(self.n):
-                if np.all(self.pieces[i, :] == player) or np.all(self.pieces[:, i] == player):
-                    return player
-            # Diagonals
-            if np.all(np.diag(self.pieces) == player) or np.all(np.diag(np.fliplr(self.pieces)) == player):
+        board = self.pieces
+        m, n = board.shape
+        k = int(win_len)
+
+        if k <= 0:
+            raise ValueError("win_len must be a positive integer.")
+        if k > max(m, n):
+            return 0  # impossible to have k in a row
+
+        def has_k(player):
+            # Horizontal
+            for r in range(m):
+                count = 0
+                for c in range(n):
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+
+            # Vertical
+            for c in range(n):
+                count = 0
+                for r in range(m):
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+
+            # Diagonal down-right (↘)
+            # start along left edge
+            for r0 in range(m):
+                r, c = r0, 0
+                count = 0
+                while r < m and c < n:
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+                    r += 1; c += 1
+            # start along top edge (excluding 0,0 to avoid double-count)
+            for c0 in range(1, n):
+                r, c = 0, c0
+                count = 0
+                while r < m and c < n:
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+                    r += 1; c += 1
+
+            # Diagonal down-left (↙)
+            # start along right edge
+            for r0 in range(m):
+                r, c = r0, n - 1
+                count = 0
+                while r < m and c >= 0:
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+                    r += 1; c -= 1
+            # start along top edge (excluding top-right corner)
+            for c0 in range(n - 2, -1, -1):
+                r, c = 0, c0
+                count = 0
+                while r < m and c >= 0:
+                    count = count + 1 if board[r, c] == player else 0
+                    if count >= k:
+                        return True
+                    r += 1; c -= 1
+
+            return False
+
+        for player in (1, -1):
+            if has_k(player):
                 return player
         return 0
+
 
     def execute_move(self, move_idx, player):
         """Perform the given move on the board."""
